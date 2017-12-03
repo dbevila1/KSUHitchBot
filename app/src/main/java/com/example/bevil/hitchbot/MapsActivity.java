@@ -13,6 +13,11 @@ import android.os.Bundle;
 import android.support.v4.content.ContextCompat;
 import android.widget.Toast;
 
+import com.directions.route.AbstractRouting;
+import com.directions.route.Route;
+import com.directions.route.RouteException;
+import com.directions.route.Routing;
+import com.directions.route.RoutingListener;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -27,18 +32,31 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @SuppressWarnings("ALL")
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback,
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
-        LocationListener {
+        LocationListener,
+        RoutingListener {
 
     private GoogleMap mMap;
     private GoogleApiClient client;
     private LocationRequest locationRequest;
     private Location lastLocation;
     private Marker currentLocationMarker;
+
+    private double fixedLat = 41.14496782441288;
+    private double fixedLng = -81.34153425693512;
+
+    private List<Polyline> polylines;
+    private static final int[] COLORS = new int[]{R.color.primary_dark_material_light};
+
 
     public static final int REQUEST_LOCATION_CODE = 99;
 
@@ -50,6 +68,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             checkLocationPermission();
         }
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
+        polylines = new ArrayList<>();
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
@@ -91,11 +110,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
-        LatLng ksuMCSBuilding = new LatLng(41.14496782441288, -81.34153425693512);
+        /*LatLng ksuMCSBuilding = new LatLng(41.14496782441288, -81.34153425693512);
         mMap.addMarker(new MarkerOptions().position(ksuMCSBuilding).title("Marker at KSU Math and CS building"));
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(ksuMCSBuilding));
+        mMap.moveCamera(CameraUpdateFactory.newLatLng(ksuMCSBuilding));*/
+        fixedTravelLocation(googleMap);
 
         if(ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            buildGoogleApiClient();
+            mMap.setMyLocationEnabled(true);
+        }
+        else{
             buildGoogleApiClient();
             mMap.setMyLocationEnabled(true);
         }
@@ -136,6 +160,30 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             LocationServices.FusedLocationApi.removeLocationUpdates(client, this);
         }
 
+        getRouteToMarker(latLng);
+
+    }
+
+    private void getRouteToMarker(LatLng latLng) {
+        Routing routing = new Routing.Builder()
+                .travelMode(AbstractRouting.TravelMode.WALKING)
+                .withListener(this)
+                .alternativeRoutes(false)
+                .waypoints(getFixedLocation(), latLng)
+                .build();
+        routing.execute();
+    }
+
+    public LatLng getFixedLocation(){
+        LatLng ksuMCSBuilding = new LatLng(fixedLat, fixedLng);
+        return ksuMCSBuilding;
+    }
+
+    public void fixedTravelLocation(GoogleMap googleMap){
+        mMap = googleMap;
+        LatLng ksuMCSBuilding = new LatLng(fixedLat, fixedLng);//41.14496782441288, -81.34153425693512);
+        mMap.addMarker(new MarkerOptions().position(ksuMCSBuilding).title("Marker at KSU Math and CS building"));
+        mMap.moveCamera(CameraUpdateFactory.newLatLng(ksuMCSBuilding));
     }
 
 
@@ -176,4 +224,52 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
 
     }
+
+    @Override
+    public void onRoutingFailure(RouteException e) {
+        if(e != null){
+            Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+        else{
+            Toast.makeText(this, "Something went wrong, try again. ", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    public void onRoutingStart() {
+
+    }
+
+    @Override
+    public void onRoutingSuccess(ArrayList<Route> route, int shortestRouteIndex) {
+        if(polylines.size()>0) {
+            for (Polyline poly : polylines) {
+                poly.remove();
+            }
+        }
+
+        polylines = new ArrayList<>();
+        //add route(s) to the map.
+        for (int i = 0; i <route.size(); i++) {
+
+            //In case of more than 5 alternative routes
+            int colorIndex = i % COLORS.length;
+
+            PolylineOptions polyOptions = new PolylineOptions();
+            polyOptions.color(getResources().getColor(COLORS[colorIndex]));
+            polyOptions.width(10 + i * 3);
+            polyOptions.addAll(route.get(i).getPoints());
+            Polyline polyline = mMap.addPolyline(polyOptions);
+            polylines.add(polyline);
+
+            Toast.makeText(getApplicationContext(),"Route "+ (i+1) +": distance - "+ route.get(i).getDistanceValue()+": duration - "+ route.get(i).getDurationValue(),Toast.LENGTH_SHORT).show();
+        }
+
+    }
+
+    @Override
+    public void onRoutingCancelled() {
+
+    }
+
 }
