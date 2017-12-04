@@ -34,9 +34,13 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
+import com.ibm.watson.developer_cloud.android.library.audio.StreamPlayer;
+import com.ibm.watson.developer_cloud.text_to_speech.v1.TextToSpeech;
+import com.ibm.watson.developer_cloud.text_to_speech.v1.model.Voice;
 
 import java.util.ArrayList;
 import java.util.List;
+
 
 @SuppressWarnings("ALL")
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback,
@@ -60,6 +64,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     public static final int REQUEST_LOCATION_CODE = 99;
 
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -72,6 +78,24 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
+
+        Thread thread = new Thread(new Runnable(){
+            public void run() {
+
+                try {
+                    final TextToSpeech service = new TextToSpeech();
+                    service.setUsernameAndPassword("d1cf2d4d-343b-4b54-9994-e00348150272", "fzXb1TaXRIHr");
+                    List<Voice> voices = service.getVoices().execute();
+                    System.out.println(voices);
+
+                    StreamPlayer streamPlayer = new StreamPlayer();
+                    streamPlayer.playStream(service.synthesize(String.valueOf("<voice-transformation type=\"Young\" strength=\"100%\" pitch=\"70%\"> Follow this map to the Math building! </voice-transformation>"), Voice.EN_MICHAEL).execute());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+        thread.start();
 
 
     }
